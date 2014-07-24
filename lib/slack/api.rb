@@ -1,12 +1,12 @@
 require "slack/api/version"
+require "slack/api/multipart"
 require "net/http"
 require "json"
+
 
 module Slack
   module Api
     class Wrapper
-
-
       def initialize(token)
         raise "set your api token"  unless token
         @root_url = 'https://slack.com/api'
@@ -56,8 +56,37 @@ module Slack
         _submit('channels.list', {'exclude_archived' => exclude_archived})
       end
 
-      def files_upload()
-        # TODO:
+      def files_upload(filepath = nil, content = nil, filetype = nil, filename = nil, title = nil, initial_comment = nil, channels = nil)
+
+        params = _params({
+            'content' => content,
+            'filetype' => filetype,
+            'filename' => filename,
+            'title' => title,
+            'initial_comment' => initial_comment,
+            'channels' => channels
+        })
+
+        if filepath.nil? && ! content.nil?
+          params['file'] = nil
+          return _submit('files.upload', params)
+        end
+
+        params['file'] = {
+          'filepath' => filepath
+        }
+
+        url = _url('files.upload')
+        http = Net::HTTP.new(url.host, url.port)
+        http.use_ssl = true
+        http.start do |http|
+          req = Net::HTTP::Post.new(url.path)
+          form_data = Slack::Api::Multipart.new(params)
+          req.body_stream = form_data
+          req["Content-Length"] = form_data.size
+          req["Content-Type"] = form_data.content_type
+          return http.request(req)
+        end
       end
 
       def files_list(user = nil, ts_from = nil, ts_to = nil, types = nil, count = nil, page = nil)
